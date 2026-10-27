@@ -546,7 +546,37 @@ io.on('connection', (socket) => {
   socket.on('disconnect', handleDisconnect);
 });
 
+// ============================================================================
+// RENDER KEEPALIVE ENGINE
+// Render free web services sleep after 15 minutes of inactivity.
+// This automatically self-pings the /health endpoint every 13 minutes using
+// Render's auto-injected RENDER_EXTERNAL_URL environment variable to stay awake.
+// ============================================================================
+const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || process.env.SELF_URL || "";
+
+function startRenderKeepAlive() {
+  if (!RENDER_EXTERNAL_URL) {
+    console.log("ℹ️ Keepalive idle: Running locally or RENDER_EXTERNAL_URL not set (auto-activates when deployed on Render).");
+    return;
+  }
+
+  const pingUrl = `${RENDER_EXTERNAL_URL.replace(/\/+$/, '')}/health`;
+  const PING_INTERVAL = 13 * 60 * 1000; // 13 minutes (Render timeout is 15 minutes)
+
+  console.log(`⏱️ Keepalive active: Self-pinging ${pingUrl} every 13 minutes to prevent Render spin-down.`);
+
+  setInterval(async () => {
+    try {
+      const res = await fetch(pingUrl);
+      console.log(`💓 [Keepalive] Self-ping status: ${res.status} at ${new Date().toLocaleTimeString()}`);
+    } catch (err) {
+      console.warn(`⚠️ [Keepalive warning]:`, err.message);
+    }
+  }, PING_INTERVAL);
+}
+
 server.listen(PORT, () => {
   console.log(`🌲 Escanaba Guessr Server running on port ${PORT}`);
   console.log(`🔑 Mapillary Token loaded: ${MAPILLARY_TOKEN ? 'YES' : 'NO (Demo fallback active)'}`);
+  startRenderKeepAlive();
 });
